@@ -1,0 +1,971 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+ 
+ <title>Open Source Watch</title>
+ <link href="http://localhost:4000/atom.xml" rel="self"/>
+ <link href="http://localhost:4000"/>
+ <updated>2018-04-01T00:07:16+05:00</updated>
+ <id>http://localhost:4000</id>
+ <author>
+   <name>Open Source Watch</name>
+   <email>your@email.com</email>
+ </author>
+
+ 
+ <entry>
+   <title>How We Became the Most Up-To-Date Monitor of Open-Source Github Projects on the Web</title>
+   <link href="http://localhost:4000#2017-02-09-00"/>
+   <updated>2017-02-09T00:00:00+05:00</updated>
+   <id>/open-source-watch</id>
+   <content type="html">&lt;p&gt;&lt;a href=&quot;http://www.opensourcewatch.io&quot;&gt;
+  &lt;img style=&quot;max-width: 30%;&quot; src=&quot;/assets/osw-logo.png&quot; alt=&quot;opensourcewatch logo&quot; id=&quot;osw_logo&quot; /&gt;
+&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;This is the story of how two developers set out to discover the top contributors to open-source. We do this by tracking the top 100,000 most starred repositories on Github. Some stats about the project:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;1,200,000+ Requests Per Day (RPD)&lt;/li&gt;
+  &lt;li&gt;20,000,000+ Records (and counting)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;We are going to walk you through the major struggles we faced and lessons learned along the way.&lt;/p&gt;
+
+&lt;p&gt;Wait, who are &lt;em&gt;we&lt;/em&gt; you ask?&lt;/p&gt;
+
+&lt;div&gt;
+  &lt;a href=&quot;http://getmichaelonboard.com/&quot;&gt;
+    &lt;img class=&quot;gravitar&quot; src=&quot;https://secure.gravatar.com/avatar/6ec313ee09eeb69eddd3789f98a3d2b2&quot; /&gt;
+  &lt;/a&gt;
+
+  &lt;a href=&quot;http://numbluk.com/credentials&quot;&gt;
+    &lt;img class=&quot;gravitar&quot; src=&quot;https://www.gravatar.com/avatar/fd080461b35c3dcb5911e38d5f58c5af&quot; /&gt;
+  &lt;/a&gt;
+&lt;/div&gt;
+
+&lt;p&gt;We are two full stack developers. Click our beautiful faces to check out us out ;)&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;p&gt;&lt;strong&gt;Psst&lt;/strong&gt; By the way, if you are hiring (or know someone who is), Michael is currently looking for a fullstack position.&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;table-of-contents&quot;&gt;Table of Contents&lt;/h2&gt;
+&lt;ol&gt;
+  &lt;li&gt;&lt;strong&gt;How it All Began&lt;/strong&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Getting Started:&lt;/strong&gt; &lt;em&gt;Capacity and Cost per Request&lt;/em&gt;
+    &lt;ul&gt;
+      &lt;li&gt;Tracking the Top 100,000 repositories&lt;/li&gt;
+      &lt;li&gt;Iteration 0: 200,000 Requests Per Day&lt;/li&gt;
+      &lt;li&gt;The Problem of Shared State&lt;/li&gt;
+      &lt;li&gt;Coordination Options: DB Psuedo-Queue vs. Redis Queue&lt;/li&gt;
+      &lt;li&gt;Collaboration: Dispatcher Object Map&lt;/li&gt;
+      &lt;li&gt;Scaling Up: Performance Comparison&lt;/li&gt;
+      &lt;li&gt;Scaling Out: 1.2 Million Requests Per Day&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Can’t Work, Too Busy:&lt;/strong&gt; &lt;em&gt;Robust Processes and Centralized Control&lt;/em&gt;
+    &lt;ul&gt;
+      &lt;li&gt;More Servers, More Headaches&lt;/li&gt;
+      &lt;li&gt;Server Micromanagement: Working with Brittle Data&lt;/li&gt;
+      &lt;li&gt;Binding Daemons to our Will: Failover&lt;/li&gt;
+      &lt;li&gt;The Power of Daemons: Centralized Control&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Growing Pains:&lt;/strong&gt; &lt;em&gt;System Bottlenecks &amp;amp; System Tuning&lt;/em&gt;
+    &lt;ul&gt;
+      &lt;li&gt;More Questions, More Data: Retrieving Historical Data&lt;/li&gt;
+      &lt;li&gt;More data, More Problems: Handling Millions of Writes Per Day&lt;/li&gt;
+      &lt;li&gt;Putting on Our Thinking Caps: Capacity from 1 Million to 300,000 Requests&lt;/li&gt;
+      &lt;li&gt;Is Postgres Being Overwhelmed?&lt;/li&gt;
+      &lt;li&gt;Is it Slow DB Reads?&lt;/li&gt;
+      &lt;li&gt;Gaining Speed: 700,000 Requests&lt;/li&gt;
+      &lt;li&gt;Is it Aggregate Latency (many queries over the wire)?&lt;/li&gt;
+      &lt;li&gt;Aggregate Latency Begone!&lt;/li&gt;
+      &lt;li&gt;Vrr… 900,000 Requests&lt;/li&gt;
+      &lt;li&gt;Behind the ORM Curtain&lt;/li&gt;
+      &lt;li&gt;Pushing Validations to the Database&lt;/li&gt;
+      &lt;li&gt;Vrr-OOM! 1,000,000 Requests&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Exploring the Data:&lt;/strong&gt; &lt;em&gt;50 second Page Load Time!?&lt;/em&gt;
+    &lt;ul&gt;
+      &lt;li&gt;Putting our Thinking Caps Back On…&lt;/li&gt;
+      &lt;li&gt;Can we Cache the Query?&lt;/li&gt;
+      &lt;li&gt;Lazily Loaded Table Caching - Custom Tables?&lt;/li&gt;
+      &lt;li&gt;The Materialized View Impact: 250x Faster!&lt;/li&gt;
+      &lt;li&gt;Until We Added that N+1 Query…&lt;/li&gt;
+      &lt;li&gt;Impact of Database Level Caching&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Making Requests Count:&lt;/strong&gt; &lt;em&gt;SRRPQQ for Tuning the Distribution of Repeat Jobs&lt;/em&gt;
+    &lt;ul&gt;
+      &lt;li&gt;Not All Repositories are Created Equal&lt;/li&gt;
+      &lt;li&gt;Priority Queue?&lt;/li&gt;
+      &lt;li&gt;Failed Priority Queue Experiment: Binary Heap&lt;/li&gt;
+      &lt;li&gt;Failed Priority Queue Experiments: Sorted Sets&lt;/li&gt;
+      &lt;li&gt;What do we Really Want?&lt;/li&gt;
+      &lt;li&gt;Staggered Round-Robin Prioritized Queue-of-Queues!?&lt;/li&gt;
+      &lt;li&gt;The Code: Enqueueing&lt;/li&gt;
+      &lt;li&gt;The Code: Tuning and Dequeueing&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;&lt;strong&gt;Future Work and Lessons Learned&lt;/strong&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;how-it-all-began&quot;&gt;How it all Began&lt;/h2&gt;
+&lt;p&gt;Open Source Watch started as a collaborative idea between &lt;a href=&quot;http://getmichaelonboard.com&quot;&gt;Michael Mentele&lt;/a&gt; and &lt;a href=&quot;http://numbluk.com&quot;&gt;Lukas Nimmo&lt;/a&gt;. We wanted to gauge the activity of open-source projects on Github and find out who the heroes of open-source are.&lt;/p&gt;
+
+&lt;p&gt;The questions we asked were:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;What are the most active repositories?&lt;/li&gt;
+  &lt;li&gt;Who are the most active users?&lt;/li&gt;
+  &lt;li&gt;What issues are most active?&lt;/li&gt;
+  &lt;li&gt;Which users communicate the most?&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Here is a look at Open Source Watch (OSW):
+&lt;br /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/02_osw_home_full.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The homepage consists of AJAXified sprinkles for the table displays and styles provided by the Materialize framework. Take a long look (or go to our &lt;a href=&quot;http://opensourcewatch.io&quot;&gt;website&lt;/a&gt;) because we won’t be talking about this much.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/03_overview_glacier.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The focus of OSW is answering questions and to answer questions, we need to focus on data. The rest of the conversation will center on acquiring data, setting up infrastructure, and tuning our system.&lt;/p&gt;
+
+&lt;h2 id=&quot;infrastructure-capacity-and-cost-per-request&quot;&gt;Infrastructure: Capacity and Cost per Request&lt;/h2&gt;
+
+&lt;p&gt;We believe that developers should be able to see updated information from when they begin their work day to when they finish. For that reason we initially selected an &lt;strong&gt;8 hour window&lt;/strong&gt; as our target.&lt;/p&gt;
+
+&lt;p&gt;First, we need to get the repository URLs of the projects we are going to track. Our simple solution was to retrieve the top 100,000 repositories using Github’s Search API. We did this by searching most starred repositories in descending order and paginating through the JSON returned by Github.&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;p&gt;&lt;b&gt;Tip&lt;/b&gt;: Double check your data streams! Third-party API’s are not always robust. Github’s Search API can be flimsy and inaccurate, with holes in the data. We had to be very careful, for example decrementing the star count by one each time to ensure our data was complete. If we had relied on Github’s ‘next page url’ we would have had dirty data!&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;&lt;br /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;iteration-0&quot;&gt;Iteration 0&lt;/h3&gt;
+
+&lt;p&gt;Luckily, scraping the top Repositories was a one-time job. We stored the data in a PostgreSQL database and charged ahead with a single process to begin scraping!&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/04_iteration_0.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;One process can achieve 8,500 requests on our Digital Ocean server. We did some extrapolation and estimated it would take 36 hours to scrape all 100,000 repositories one time through (with an average of 2.8 requests needed per repository)!&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/acq_status_01.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;This is 4.5x slower than our target. So, what to do? Scale up! More scrapers means more capacity and with 6 processes we can get within the 8 hour window.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/05_iteration_1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;the-problem-of-shared-state&quot;&gt;The Problem of Shared State&lt;/h3&gt;
+
+&lt;p&gt;Initially, our scraper kept the list of repos internally as a circular queue. We shift from the front and immediately push that repository to the back like so:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/06_current_state_of_scraper.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;With this data structure we can always ensure that we are getting the oldest repository in O(1) time.&lt;/p&gt;
+
+&lt;p&gt;However, that data is stored in-memory within the process itself. If we scaled as is, they would not be working off the same queue; each would work through its own list independently:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/07_shared_state.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;What we want is for our scrapers to be working off the same list. Therefore, we extracted and centralize this queue state like so:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/08_non_shared_state.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;coordination-options&quot;&gt;Coordination Options&lt;/h3&gt;
+
+&lt;p&gt;Okay, how do we implement this? Two options occurred to us…&lt;/p&gt;
+
+&lt;p&gt;First, we could use the current database as a pseudo-queue by &lt;em&gt;timestamping&lt;/em&gt; the repository every time we scrape it, and then making sure we retrieve the record with the oldest ‘updated_at’ column. However, this means that every time we want the next repository, we have to do a scan to find the oldest timestamp. This is awfully slow:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/10_db_coord_opt_before_idx.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;What if we indexed that column?&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/11_db_coord_opt_after_idx.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;It’s definitely faster. And if we scale it would do so in O(log(n)) time, which isn’t too bad. But, if we ever scale the repositories we track it will still slow down somewhat.&lt;/p&gt;
+
+&lt;p&gt;We prefer the O(1) complexity of a circular queue data structure.&lt;/p&gt;
+
+&lt;p&gt;Enter Redis; Redis is often used as a shared queue for workers. It allows us to implement the circular queue directly. Here is an example benchmark to get an idea of its throughput:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/12_redis_benchmark.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Since we use the queue data structure, the operation is always O(1). On top of that, our system is now more orthogonal as the concerns of storage and coordination are separate.&lt;/p&gt;
+
+&lt;h3 id=&quot;collaboration&quot;&gt;Collaboration&lt;/h3&gt;
+
+&lt;p&gt;Here is the how collaboration is implemented with Redis:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/13_obj_collab.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;There is a queue object that is a layer on top of Redis which manages the queue. The dispatcher, the interface between the scrapers and the queue, then requests the next repository from the queue object. The queue object shifts a repository from the front of the Redis queue, copies it, and immediately pushes it to the back of the queue. The dispatcher gets a clone and passes the data from the queue to its collaborating scraper agents.&lt;/p&gt;
+
+&lt;h3 id=&quot;scale-up&quot;&gt;Scale Up?&lt;/h3&gt;
+
+&lt;p&gt;Now that the scrapers can coordinate via the Redis queue, the next question is whether to scale up or scale out. We could scale up and stack concurrent on one high memory server.&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;p&gt;&lt;strong&gt;Discovery:&lt;/strong&gt; We had a few concerns like our IP being blacklisted by Github so we did some testing and it turned out to be a non issue for our use case.&lt;/p&gt;
+
+&lt;p&gt;Initially, we were being throttled hard (because we looked like a bot–which we were) but we soon realized this was only for &lt;em&gt;repeatedly hitting the same url hundreds of times&lt;/em&gt; if instead we used a round-robin approach Github was none the wiser.&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/14_concurrent_diminishing_returns.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Our processes are memory hogs, but it doesn’t matter as more than two processes give diminishing returns. Dollar for dollar it would be better ROI to scale up, and maximize our low memory machines and then scale out from there.&lt;/p&gt;
+
+&lt;p&gt;We spin up a second process on our server…&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/acq_status_02.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;scaling-out&quot;&gt;Scaling Out&lt;/h3&gt;
+
+&lt;p&gt;We are doing a decent job of maximizing our machines so we spun up two more servers with two processes each.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/acq_status_03.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now, four times a day (every 6 hours) we scrape the top 100,000 repositories on Github using 3 servers (represented by the dispatcher objects) which are coordinated by a Redis queue. This is well within our 8 hour window!&lt;/p&gt;
+
+&lt;p&gt;In total, roughly 1.2 million requests per day are made to Github (don’t worry, we won’t be overwhelming them anytime soon).&lt;/p&gt;
+
+&lt;p&gt;An updated system overview:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/15_more_the_merrier.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We now have many servers with multiple processes sharing a single queue on Redis. Everything is great!&lt;/p&gt;
+
+&lt;p&gt;Or is it?&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;p&gt;&lt;strong&gt;Note:&lt;/strong&gt; We can get more out of our hardware. Our processes are memory hogs. However, the tradeoff of developer time spent working on optimizing an already cheap process was not worth the opportunity cost of further development.&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;cant-work-too-busy-robust-processes-and-centralized-control&quot;&gt;Can’t Work, Too Busy: Robust Processes and Centralized Control&lt;/h2&gt;
+
+&lt;h3 id=&quot;more-servers-more-headaches&quot;&gt;More Servers, More Headaches&lt;/h3&gt;
+
+&lt;p&gt;Now that we have six processes, all of them must be micromanaged. Why? The remote SSH connection (to each process) must remain open on our local machine to run the scraper process. Overall, this means six open connections for monitoring, controlling, and restarting. Do I need to tell you this is &lt;em&gt;extremely&lt;/em&gt; time consuming?&lt;/p&gt;
+
+&lt;p&gt;A normal day might look like the following: wake up, check on the processes from the night before, and—&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;Gasp!&lt;/em&gt; The scrapers all crashed in the middle of the night!&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/16_dilbert.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Losing this valuable time meant we lost hundreds of thousands of requests.  We would then debug and redeploy with no guarantee that we wouldn’t run into some other edge-case.&lt;/p&gt;
+
+&lt;p&gt;On top of all of this was an additional cost of cognitive load:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;every&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;seconds&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;train_of_thought&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;derail&lt;/span&gt;
+
+  &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;scraper&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;down?&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;train_of_thought&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;crash&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;scraper&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;debug&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;scraper&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;start&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;dev&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;pray&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Babysitting the scrapers meant we were constantly distracted. This grew especially tiresome whenever we needed full concentration to focus on something important; not a very efficient use of time at all.&lt;/p&gt;
+
+&lt;p&gt;Much of this had to do with handling brittle data. We were essentially trying to rescue every edge-case for data we can’t control. This cost too much time. We needed failover and process recycling.&lt;/p&gt;
+
+&lt;h3 id=&quot;how-can-we-stop-micromanaging-our-scrapers&quot;&gt;How can we stop micromanaging our scrapers?&lt;/h3&gt;
+
+&lt;p&gt;As we mentioned, in order to keep the scrapers running, a connection had to remain alive between our local machines and the remote ones. Why? The scraper process is attached to the SSH session. In Linux, everything is a process and the scraper process is a child process of our SSH session. Therefore if the ssh session dies, so too does the scraper process.&lt;/p&gt;
+
+&lt;p&gt;We need to detach from the SSH session and move the scraper to a background process. When a process is forked and then exits, it becomes an orphan. Any orphan processes are then gathered up by the init process, the “grandfather” of all other processes.&lt;/p&gt;
+
+&lt;p&gt;Enter daemons. Daemons are background processes that are in no way attached to a terminal so we can close the SSH connection and it will still run. One of the downsides of this is the necessity of thorough logging: no longer will the SSH connection be active, which means that even if the daemon’s output was printed to STDOUT, there would be no way to see it.&lt;/p&gt;
+
+&lt;h3 id=&quot;binding-daemons-to-our-will&quot;&gt;Binding Daemons to Our Will&lt;/h3&gt;
+
+&lt;p&gt;We have these background processes, so how do we ensure the daemons are always running? We first considered Monit, but it was much, much more than we needed and the time required to familiarize ourselves with it just wasn’t worth it.&lt;/p&gt;
+
+&lt;p&gt;In the end, a simple Bash script was settled on:&lt;/p&gt;
+
+&lt;div class=&quot;language-sh highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;while &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;true
+&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;do
+  &lt;/span&gt;rake ScraperDispatcher:scrape_commits
+&lt;span class=&quot;k&quot;&gt;done&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Each scraper process is run as a Rake task wrapped within an infinite Bash loop. In the case that the Rake task crashes, it restarts the process. The only way this loop will every be interrupted is if our server crashes or the bash process is killed.&lt;/p&gt;
+
+&lt;p&gt;We initiate this entire management process with a CLI application.&lt;/p&gt;
+
+&lt;h3 id=&quot;the-power-of-daemons&quot;&gt;The Power of Daemons&lt;/h3&gt;
+
+&lt;p&gt;Below, you can see the status call of the CLI app we’ve written to remotely manage our daemons:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/17_the_power_of_daemons.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;From our one console, with a few keyboard strokes, we can check on all of our scrapers. Centralized control makes deployment simple, monitoring a joy (if that’s a thing), and restarting painless. No longer do the processes have to be micromanaged.&lt;/p&gt;
+
+&lt;h2 id=&quot;growing-pains-system-bottlenecks-and-system-tuning&quot;&gt;Growing Pains: System Bottlenecks and System Tuning&lt;/h2&gt;
+
+&lt;p&gt;We’ve been acquiring data during the 7 days that we’ve been working on the project and the database has reached a few hundred-thousand records.&lt;/p&gt;
+
+&lt;h3 id=&quot;more-questions-more-data&quot;&gt;More Questions, More Data&lt;/h3&gt;
+
+&lt;p&gt;We want to answer questions related to the past 30 and 90 days. We could wait 83 days, but we are programmers; we can do better. The next phase involved scraping the last 90 days of data as a one-time job. Our estimate was that it would take roughly 3 days with our 6 processes.&lt;/p&gt;
+
+&lt;h3 id=&quot;more-data-more-problems&quot;&gt;More data, More Problems&lt;/h3&gt;
+
+&lt;p&gt;We tweaked our scrapers to grab historical data related over the past 90 days. As we quickly found out, more data meant new problems:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/18_more_data_more_problems.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Only scraping daily data brought in around 25,000 new records a day, but we were now getting hundreds of thousands to millions of records a day. Our request capacity quickly plummeted to 30% of what we expected.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/downshift_01.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We’ve been downshifted…&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/19_downshifted.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;At 30% capacity (of 1.2 Million requests), it will take 10 days to retrieve all the data needed. That’s far too long.&lt;/p&gt;
+
+&lt;h3 id=&quot;putting-on-our-thinking-caps&quot;&gt;Putting on Our Thinking Caps&lt;/h3&gt;
+
+&lt;p&gt;Our scrapers are waiting on something in the system. What should be considered?&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/20_thinking_1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Well, our server activity hasn’t increased, in fact it has decreased, so we can eliminate the scraper servers right off the bat.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/20_thinking_2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Our request activity has decreased, so it can’t be anything to do with Github.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/21_thinking_2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The only difference is the number of records that are being retrieved. Now that our responses are often rich with new data that needs to be stored, is it possible the DB server is being overwhelmed? No, the CPU usage is high, but far from being overwhelmed.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/22_thinking_3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;All that remains is something to do with Postgres or the connections to Postgres.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/23_thinking_4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;is-postgres-itself-being-overwhelmed&quot;&gt;Is Postgres Itself being Overwhelmed?&lt;/h3&gt;
+
+&lt;p&gt;With 6 processes, we are writing to the database more often. Is it possible that Postgres can’t handle writes from all six servers at once?&lt;/p&gt;
+
+&lt;p&gt;Here is a benchmark of the insertion speed into Postgres:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/24_pg_insertion_benchmark.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;PG Insertion Capacity
+= (60 / .000202) insertions / min&lt;br /&gt;
+= &lt;strong&gt;297,029&lt;/strong&gt; insertions / min&lt;/p&gt;
+
+&lt;p&gt;Current AVG Rate of Insertions = 2000 insertions / min&lt;/p&gt;
+
+&lt;p&gt;With the current rate &amp;lt; 1% of capacity, insertions are not the problem. We will have to keep sleuthing…&lt;/p&gt;
+
+&lt;h2 id=&quot;is-it-slow-reads&quot;&gt;Is it Slow Reads?&lt;/h2&gt;
+
+&lt;p&gt;If the problem isn’t insertions, what about reads? Here is an example of attempting to find an issue if it exists, else make a new one:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;Issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;find_or_create_by&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;
+  &lt;span class=&quot;ss&quot;&gt;repository_id: &lt;/span&gt;&lt;span class=&quot;n&quot;&gt;built_issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'repository_id'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt;
+  &lt;span class=&quot;ss&quot;&gt;issue_number: &lt;/span&gt;&lt;span class=&quot;n&quot;&gt;built_issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'issue_number'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;built_issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'name'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;issues&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;This is necessary as there is a need to associate issues with their respective comments:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;# Get all the comments for each issue&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;issues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;raw_comments&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;raw_comment&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'issue_id'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;id&lt;/span&gt;
+    &lt;span class=&quot;vi&quot;&gt;@comments_cache&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;IssueComment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;new&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;We began to benchmark our queries and we noticed that when a search is made for each issue, it is done on two non-indexed columns. This sequential scan is O(n) because we need to scan two columns of arbitrary size. If we index these columns together, the complexity can be reduced to O(log(n)).&lt;/p&gt;
+
+&lt;p&gt;Here is before indexing:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/25_indexing_benchmark_before.jpg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;and after indexing:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/26_indexing_benchmarks_after.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Before, it took a whopping 341 ms just to look up an issue in the table with a sequential scan.&lt;/p&gt;
+
+&lt;p&gt;After, it does a heap scan which significantly impacted the lookup time; a 2700X difference. From then on we knew to keep a close eye on other similar situations.&lt;/p&gt;
+
+&lt;h3 id=&quot;gaining-speed&quot;&gt;Gaining Speed…&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/downshift_02.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/27_gaining_speed.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We picked up a great deal of speed with the index. At this moment in time, the system was running around 60% capacity.&lt;/p&gt;
+
+&lt;p&gt;While this was much better, it was still slow…&lt;/p&gt;
+
+&lt;h3 id=&quot;is-it-aggregate-latency-many-queries-over-the-wire&quot;&gt;Is it Aggregate Latency (many queries over the wire)?&lt;/h3&gt;
+
+&lt;p&gt;Our queries are now fast enough, but are too many being made? Again, it required looking through our code and thinking about how it was interacting with the database. Eventually, this caught our eye:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;# Get all the comments for each issue&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;issues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;raw_comments&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;vi&quot;&gt;@github_doc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;doc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;css&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;div.timeline-comment-wrapper&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;raw_comments&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;raw_comment&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;build_comment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;raw_comment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'issue_id'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;id&lt;/span&gt;
+    &lt;span class=&quot;vi&quot;&gt;@comments_cache&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;IssueComment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;A query was being made for each and every issue comment that was created. What if, instead, we cached records in memory and replaced many separate queries with one bulk import?&lt;/p&gt;
+
+&lt;h3 id=&quot;aggregate-latency-begone&quot;&gt;Aggregate Latency Begone!&lt;/h3&gt;
+
+&lt;p&gt;Instead of immediately attempting to create an issue comment, a new IssueComment model instance is added to an array so that the above code now looks like this:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;# Get all the comments for each issue&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;issues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;raw_comments&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;vi&quot;&gt;@github_doc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;doc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;css&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;div.timeline-comment-wrapper&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;raw_comments&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;raw_comment&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;build_commnet&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;raw_comment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'issue_id'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;id&lt;/span&gt;
+    &lt;span class=&quot;vi&quot;&gt;@comments_cache&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;IssueComment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;new&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;comment_hash&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;And whenever the array cache reaches above 30 records, a batch insert is made on all records in the cache:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;# Continuing from above...&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;vi&quot;&gt;@comments_cache&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;count&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;30&lt;/span&gt;
+    &lt;span class=&quot;no&quot;&gt;IssueComment&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;import&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;@comments_cache&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;vi&quot;&gt;@comments_cache&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;clear&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Why 30? It just so happens that is the maximum number of issues on a page.&lt;/p&gt;
+
+&lt;p&gt;Here is a visualization:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Many Queries&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/28_many_pings.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Single Query&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/29_single_ping.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;This is just a visualization. The latency between the scraper server and database server is extremely fast, less than a millisecond, but if latency exists for every single query, and a large number of them are made, then the latency starts to add up. In this case, it meant around 30 less round trips to for each bulk import.&lt;/p&gt;
+
+&lt;h3 id=&quot;vrrrr&quot;&gt;Vrrrr…&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/downshift_03.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/30_vrrr.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;At this point, we are somewhere near 80% capacity, but we didn’t give up the pursuit of optimization quite yet…&lt;/p&gt;
+
+&lt;h3 id=&quot;behind-the-orm-curtain&quot;&gt;Behind the ORM Curtain&lt;/h3&gt;
+
+&lt;p&gt;Say we have the following validation:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;IssueComment&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;ActiveRecord&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;::&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;Base&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;validates&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;:github_created_at&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;uniqueness: &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;scope: &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ss&quot;&gt;:issue_id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Behind the scenes, ActiveRecord sends another query over the wire &lt;strong&gt;every time we attempt to create a record&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/31_orm_curtain_extra_query.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Above, we spoke of reducing total queries from around 30 to 1, but in reality they were being reduced from around 60 to 31. All the validation queries were being fired separately, one-by-one behind the scenes for each insertion.&lt;/p&gt;
+
+&lt;p&gt;If the validation is pushed down to the database as a constraint, the no longer will an extra query be made for a creation attempt…&lt;/p&gt;
+
+&lt;h3 id=&quot;pushing-validations-to-the-database&quot;&gt;Pushing Validations to the Database&lt;/h3&gt;
+
+&lt;p&gt;Here is a snapshot of what the constraint now looks like:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/32_orm_curtain_db_layer_validation.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;And here is a creation attempt:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/33_orm_curtain_no_ar_validation.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;As you can see, no more extra queries! We have successfully reduced the number of queries from around 60 to 1!&lt;/p&gt;
+
+&lt;h3 id=&quot;vrr-oom&quot;&gt;Vrr-OOM!&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/downshift_04.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/34_vrroooom.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;At this point, we are now back to the capacity that we had originally anticipated. You’ll notice that 5th gear was never reached! That is not a mistake. Our acquisition could still be further tuned, but we’ll get to that later.&lt;/p&gt;
+
+&lt;h2 id=&quot;exploring-the-data&quot;&gt;Exploring the Data&lt;/h2&gt;
+
+&lt;p&gt;After all of that hard work, how about we take a look at some of the data we’ve collected? by going back back to the webpage:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/35_explore_data.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Initially, it took about a minute to load.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/render_status_01.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;No one wants to see OSW that bad!&lt;/p&gt;
+
+&lt;h3 id=&quot;putting-our-thinking-caps-back-on&quot;&gt;Putting our Thinking Caps Back On…&lt;/h3&gt;
+
+&lt;p&gt;This is a typical query (1 of 16) displayed on the webpage:&lt;/p&gt;
+
+&lt;div class=&quot;language-sql highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;SELECT&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;AS&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hit_count&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;FROM&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;&quot;users&quot;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;INNER&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;JOIN&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue_comments&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;ON&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue_comments&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;user_id&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;WHERE&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;&quot;issue_comments&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;&quot;github_created_at&quot;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;BETWEEN&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;CURRENT_DATE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;INTERVAL&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'0 day'&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TIME&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'00:00:00'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;AND&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;CURRENT_DATE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TIME&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'23:59:59.99'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;GROUP&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;BY&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;ORDER&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;BY&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hit_count&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;desc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;Here is an analysis of the query above:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/37_front_end_execution_time.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The query takes almost 13 seconds (remember, this is 1 out of 16 total queries that need to be made). It’s slow. Very slow. And there is no way around that.&lt;/p&gt;
+
+&lt;p&gt;But why is it slow?&lt;/p&gt;
+
+&lt;p&gt;Well, we have to join a couple tables that have millions of rows:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/38_front_end_merge_join.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Then we do some aggregating:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/39_front_end_aggregate.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Can we optimize our query? There is no obvious solution there.&lt;/p&gt;
+
+&lt;p&gt;Can we denormalize and remove the costly join? Yes. If we did that we would could potentially cut the query time in half, or 25 seconds. That still would not be enough. We need ALL queries together to take less than 100 ms so that the webpage load times do make a negative impact on the user’s experience.&lt;/p&gt;
+
+&lt;p&gt;We need orders of magnitude difference in speed!&lt;/p&gt;
+
+&lt;h3 id=&quot;can-we-cache-the-query&quot;&gt;Can we Cache the Query?&lt;/h3&gt;
+
+&lt;p&gt;Looking at the query again:&lt;/p&gt;
+
+&lt;div class=&quot;language-sql highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;SELECT&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;AS&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hit_count&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;FROM&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;&quot;users&quot;&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;INNER&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;JOIN&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue_comments&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;ON&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue_comments&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;user_id&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;WHERE&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;&quot;issue_comments&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;&quot;github_created_at&quot;&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;BETWEEN&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;CURRENT_DATE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;INTERVAL&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'0 day'&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TIME&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'00:00:00'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;AND&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;CURRENT_DATE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TIME&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'23:59:59.99'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;GROUP&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;BY&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;users&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;ORDER&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;BY&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;hit_count&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;desc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;There is no interpolation of user input; the queries that we make on the webpage never change and because they never change, we can run them in advance and cache them.&lt;/p&gt;
+
+&lt;p&gt;Taking a big-picture look at the system, is it okay for our data to be stale? Yes. We scrape the top 100,000 repositories every 6 hours, so we already have a 6 hour margin of error. Keeping our queries perfectly in sync with our database doesn’t add any meaningful business value.&lt;/p&gt;
+
+&lt;p&gt;With these criteria considered, we can go ahead with the caching.&lt;/p&gt;
+
+&lt;h3 id=&quot;lazily-loaded-table-caching---custom-tables&quot;&gt;Lazily Loaded Table Caching - Custom Tables?&lt;/h3&gt;
+
+&lt;p&gt;Lazily loaded caching is required because our system is heavily geared towards write operations.&lt;/p&gt;
+
+&lt;p&gt;One option for lazily loaded caching included the following:&lt;/p&gt;
+&lt;ol&gt;
+  &lt;li&gt;Build a lazily refreshed custom table&lt;/li&gt;
+  &lt;li&gt;But then functions would need to be created to update timestamps with:
+    &lt;ul&gt;
+      &lt;li&gt;insertion&lt;/li&gt;
+      &lt;li&gt;update&lt;/li&gt;
+      &lt;li&gt;delete&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Finally, we would need to specify a function to handle actually updating stale rows&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;strong&gt;OR&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;We could use Postgres’ built-in materialized views and refresh periodically with a cron job which looks like this:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;every&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;5&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;minutes&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;rake&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'refresh_matviews'&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;the-materialized-view-impact&quot;&gt;The Materialized View Impact&lt;/h3&gt;
+
+&lt;p&gt;Depending on the database solution, there will be different ways to create views and cache queries. For those of you familiar with Postgres, all that is needed is a built-in keyword to tell PG to cache the query results:&lt;/p&gt;
+
+&lt;div class=&quot;language-sql highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;o&quot;&gt;#&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;Cache&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;view&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;query&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;CREATE&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MATERIALIZED&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;VIEW&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;my_cached_query&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;AS&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;SQL&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;query&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;goes&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;here&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;That query can then be queried as if it were a table:&lt;/p&gt;
+
+&lt;div class=&quot;language-sql highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;o&quot;&gt;#&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Query&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;like&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;normal&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;table&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;SELECT&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;FROM&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;my_cached_query&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The query will need to be refreshed periodically (in our case we did this with a cron job):&lt;/p&gt;
+
+&lt;div class=&quot;language-sql highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;o&quot;&gt;#&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Refresh&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;the&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;view&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;REFRESH&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MATERIALIZED&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;VIEW&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;my_cached_query&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Disclaimer: materialized views are only useful for static SQL queries that can be allowed to have stale data. We qualified this by only updating the matviews every ten minutes.&lt;/p&gt;
+
+&lt;p&gt;The impact of using materialized views is huge…&lt;/p&gt;
+
+&lt;h4 id=&quot;queries-are-250-times-faster&quot;&gt;Queries are 250 times faster!&lt;/h4&gt;
+
+&lt;p&gt;That is almost as fast as the round trip to our server and back! Awesome!&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/render_status_02.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;until-we-added-that-n1-query&quot;&gt;Until We Added that N+1 Query…&lt;/h3&gt;
+
+&lt;p&gt;One of the questions we try to answer involves displaying a repository for each active issue we were displaying:&lt;/p&gt;
+
+&lt;div class=&quot;language-erb highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;&amp;lt;%&lt;/span&gt; &lt;span class=&quot;vi&quot;&gt;@issues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each_with_index&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;cp&quot;&gt;%&amp;gt;&lt;/span&gt;
+&lt;span class=&quot;nt&quot;&gt;&amp;lt;tr&amp;gt;&lt;/span&gt;
+  &lt;span class=&quot;nt&quot;&gt;&amp;lt;td&amp;gt;&lt;/span&gt;
+    &lt;span class=&quot;cp&quot;&gt;&amp;lt;%=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;link_to&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;repository_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;issue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;repository_url&lt;/span&gt; &lt;span class=&quot;cp&quot;&gt;%&amp;gt;&lt;/span&gt;
+    ...
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;For each issue, there is an additional query made for the associated repository. Here is what it looks like at the database level:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/40_n_plus_one_before.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;To fix it, a join was added so that the repository information needed already lived on the cached query:&lt;/p&gt;
+
+&lt;div class=&quot;language-sql highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;SELECT&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tmp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;repositories&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;name&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;AS&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;repository_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;repositories&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;url&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;AS&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;repository_url&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;FROM&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tmp&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;INNER&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;JOIN&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;repositories&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;ON&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;repositories&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tmp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;repository&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now when the server-side rendering looks like this at the database level:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/41_n_plus_one_after.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;No more N+1!&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/render_sts_03.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;impact-of-database-level-caching&quot;&gt;Impact of Database Level Caching&lt;/h3&gt;
+
+&lt;p&gt;After all of this, it helped us achieve the following:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;50+ s query times ** to **200 ms&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;and with four queries per page…&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;50 ms query time per page&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Huge improvement!&lt;/p&gt;
+
+&lt;h2 id=&quot;making-requests-count&quot;&gt;Making Requests Count&lt;/h2&gt;
+
+&lt;p&gt;If you remember, we were handling our repositories like this:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/42_obj_collab.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;It’s a “stupid” circular queue, meaning all repositories are scraped at the same rate.&lt;/p&gt;
+
+&lt;h3 id=&quot;not-all-repositories-are-created-equal&quot;&gt;Not All Repositories are Created Equal&lt;/h3&gt;
+
+&lt;p&gt;Treating all repositories the same in relation to scraping is rather unfortunate because the top 1% of repositories by commit activity are responsible for 42% of commits:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/43_not_all_repos.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;On top of that, the top 40% of repositories by activity account for 99% of the top 100,000!&lt;/p&gt;
+
+&lt;p&gt;Maybe it’s unfair, but more active repositories should be updated more often so as to reduce the latency between when the activity is pushed to Github and our webpage.&lt;/p&gt;
+
+&lt;h3 id=&quot;priority-queue&quot;&gt;Priority Queue?&lt;/h3&gt;
+
+&lt;p&gt;Priority is key.&lt;/p&gt;
+
+&lt;p&gt;Let’s think about what is needed. Take a look at the following chart:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/44_repos_list.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Say, for example, there is a list of repositories in Redis and the numbers above represent their activity rank where 10 is the most active.&lt;/p&gt;
+
+&lt;p&gt;When the queue is first popped, the most active repository is popped and then maybe we put it somewhere in the middle:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/45_repos_10_insert.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The next time the queue is popped, the second-most active repository is removed from the queue and placed further down the from the middle as it is less active than the previous repository and therefore needs to be scraped less:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/46_repos_other_insert.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;But how, exactly, will it be implemented?&lt;/p&gt;
+
+&lt;h3 id=&quot;failed-priority-queue-experiment-binary-heap&quot;&gt;Failed Priority Queue Experiment: Binary Heap&lt;/h3&gt;
+
+&lt;p&gt;The first idea was to create a binary heap and maintain it as a priority queue. This was originally look at because priority queues are common use cases for binary heaps.&lt;/p&gt;
+
+&lt;p&gt;What is a binary heap&lt;sup id=&quot;fnref:1&quot;&gt;&lt;a href=&quot;#fn:1&quot; class=&quot;footnote&quot;&gt;1&lt;/a&gt;&lt;/sup&gt;? Put simply, it is a balanced and complete tree:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/47_heap.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;It has a “heap property”, meaning all nodes are greater than or equal to their respective children. In other words, the highest scored element will always be the root of the tree.&lt;/p&gt;
+
+&lt;p&gt;The most promising feature is that a binary heap can easily be represented as an array. The representation works as follows: the children of an i-th element are always 2i and 2i + 1. This means it can be represented in Redis with ease:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;# Example of heap expressed as array&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kp&quot;&gt;nil&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;100&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;19&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;36&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;17&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;25&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Wait… can we resort to this so simply? No. A value is pushed by adding it to the end of the array and then bubbling it, or heapifying it, through the tree. That entails multiple requests or pulling down the entire state of the Redis queue for resorting.  Also, what happens when multiple scrapers are involved:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/48_redis_concurr_probs.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;If multiple scrapers are attempting to bubble values up through Redis, or dequeueing while other processes are enqueueing?&lt;/p&gt;
+
+&lt;p&gt;Put simple: it won’t work. We could no longer be certain the root value is the highest scored or that any other values are where they should be if any of the enqueueing or dequeueing is done in parallel.&lt;/p&gt;
+
+&lt;h3 id=&quot;failed-priority-queue-experiments-sorted-sets&quot;&gt;Failed Priority Queue Experiments: Sorted Sets&lt;/h3&gt;
+
+&lt;p&gt;What else can we do? Well, Redis has a built-in data structure called a sorted set that holds key values where the key is the “score.” As an added bonus, Redis implements something similar to the binary heap behind the scenes and is smart enough to handle the concurrency problem for us. Great!&lt;/p&gt;
+
+&lt;p&gt;However, is Redis fast enough to re-sort 100,000 items faster than we can throw requests at it? Right, the  maximum number of requests with 6 processes is 14 requests per second. That means Redis has to resort 100,000 items 14 times a second in addition to creating a response. Even further, what if we double requests capacity down the line?&lt;/p&gt;
+
+&lt;p&gt;Good question. We didn’t benchmark it because there is a simpler, more important problem to consider. We have to score our values based on the priority level and then reduce the score based on the number of times they have been visited. An example calculation would like this:&lt;/p&gt;
+
+&lt;p&gt;score = priority / (times_scraped + 1)&lt;/p&gt;
+
+&lt;p&gt;If that is plotted for a few priority values it yields:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/49_decay_chart.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;One problem is that as time goes on, all scores approach zero which means that periodically we will have to shut everything down and reset the score. This additional process must be maintained and if for some reason it doesn’t refresh the scores then the whole priority queue breaks. Not only that, if capacity is increased without updating the process it breaks. There is a high maintenance cost involved with resorting to this method without even being sure Redis will be fast enough. Not to mention, how do we tune the frequency distribution? This sounds more painful than it should be.&lt;/p&gt;
+
+&lt;p&gt;What is really nice about a circular queue is that the oldest repository is always known and it is has the fastest possible enqueue and dequeue. Can we prioritize, but keep those advantages? Can we prioritize without scoring and sorting?&lt;/p&gt;
+
+&lt;h3 id=&quot;what-do-we-really-want&quot;&gt;What do we Really Want?&lt;/h3&gt;
+
+&lt;p&gt;Let’s go back to the ranked list of nodes:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/50_example_list.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;and let us lump this list into three priority levels like so:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/51_lumped_list.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;We are going to say say that the frequency ratio is 10:5:1. What we really need is to be able to control the frequency with which each priority level is scraped.&lt;/p&gt;
+
+&lt;p&gt;For example, 3 would be scraped 10X by shifting the first node from the front and pushing it to the back of the subset of nodes with a priority of 3:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/52_10x.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;And do the same with priority level 2 and 1 with frequencies of 5x and 1x respectively:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/53_5x_and_1x.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;All of this led to the following…&lt;/p&gt;
+
+&lt;h3 id=&quot;staggered-round-robin-prioritized-queue-of-queues&quot;&gt;Staggered Round-Robin Prioritized Queue-of-Queues!?&lt;/h3&gt;
+
+&lt;p&gt;To prioritize and tune the scraping frequency we used a staggered round-robin prioritized queue-of-queues.&lt;/p&gt;
+
+&lt;p&gt;Or SRRPQQ for short.&lt;/p&gt;
+
+&lt;p&gt;We began by ordering our list of repositories by activity and then range mapping that ordered list into X number of “buckets” where each bucket will get its own Redis queue:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/54_range_mapping.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Then when the dispatcher requests a repository, it will actually be interacting with a priority queue object which has a method to draw from each bucket at the frequency we need:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/55_.dispatch_freq.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;This may appear to be a lot to take in, but it really just is a smart priority queue that allows us to easily give more attention to more active repositories and thereby reducing latency between when something is pushed to Github and when that information shows up on our webpage.&lt;/p&gt;
+
+&lt;p&gt;How is this all implemented?&lt;/p&gt;
+
+&lt;h4 id=&quot;the-code-enqueueing&quot;&gt;The Code: Enqueueing&lt;/h4&gt;
+
+&lt;p&gt;First, we calculate the size of each range:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;enqueue_prioritized_sub_queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tracked_repos&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;bucket_size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tracked_repos&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;count&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;to_f&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;PRIORITY_RANGE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;ceil&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Then we range map the sorted list of tracked repositories:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;  &lt;span class=&quot;c1&quot;&gt;# Enqueue a sub queue for each priority level&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;index&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;tracked_repos&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;in_groups_of&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;bucket_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kp&quot;&gt;false&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;batch&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Then we create a stupid circular queue for each bucket and enqueue it into Redis:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;n&quot;&gt;priority&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;PRIORITY_RANGE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;index&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;queue_name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sub_queue_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;priority&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;to_s&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;index&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;sub_queue&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;no&quot;&gt;CircularRedisQueue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;new&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;batch&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;queue_name: &lt;/span&gt;&lt;span class=&quot;n&quot;&gt;queue_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;sub_queue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;enqueue_redis&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h4 id=&quot;the-code-tuning-and-dequeueing&quot;&gt;The Code: Tuning and Dequeueing&lt;/h4&gt;
+
+&lt;p&gt;We’ll now assume there are 3 circular queues in Redis. We then tune the frequency distribution of scraping in the priority queue object with a reference to each queue we that looks resembles something likes this:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Which is generated from the following method:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;skewed_distr_of_queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;skewed_queue_distr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[]&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;length&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;each&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;do&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;q&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;
+      &lt;span class=&quot;n&quot;&gt;skewed_queue_distr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;q&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;pop&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;skewed_queue_distr&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;This above loop maps the number of references to the priority level e.g. 3 would be scraped 3 times, 2 two times, etc.&lt;/p&gt;
+
+&lt;p&gt;Now there is a circular queue of queues! To retrieve the next repository, we rely on the each circular queue object to know which repository to return:&lt;/p&gt;
+
+&lt;div class=&quot;language-ruby highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;next&lt;/span&gt;
+  &lt;span class=&quot;c1&quot;&gt;# get leftmost queue and push to the end&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;queue&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;vi&quot;&gt;@queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;shift&lt;/span&gt;
+  &lt;span class=&quot;vi&quot;&gt;@queues&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;push&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;queue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+  &lt;span class=&quot;c1&quot;&gt;# return the next repository&lt;/span&gt;
+  &lt;span class=&quot;n&quot;&gt;queue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;next&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;end&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;frequency-distribution-of-scraping&quot;&gt;Frequency Distribution of Scraping&lt;/h3&gt;
+
+&lt;p&gt;The code you saw previously gives us a distribution like this:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/56_untuned_freq.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;If we tune it further by modifying the population of queue references we achieve a distribution that more closely matches the activity of repositories.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/57_tuned_freq.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The Staggered Round-Robin Queue-of-Queues is simple, as fast as possible (zero sorting), and gives precise control over the scraping distribution.&lt;/p&gt;
+
+&lt;h2 id=&quot;the-future-and-beyond&quot;&gt;The Future and Beyond&lt;/h2&gt;
+
+&lt;p&gt;What does the future hold for OSW? Let’s take a look…&lt;/p&gt;
+
+&lt;h3 id=&quot;reaching-5th-gear&quot;&gt;Reaching 5th Gear&lt;/h3&gt;
+
+&lt;p&gt;To start off, all top 100,000 repositories are scraped within a 5.5 hour time frame. We would like to push that to under an hour.&lt;/p&gt;
+
+&lt;p&gt;Right now, even though our queries are efficient enough, the scrapers still have to wait on them. Here is a diagram that represents the current state:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/58_sleepy_scraper.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Instead of waiting on queries at all, we can maximize server resources if we git rid of the wait time altogether:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/posts/2017-02-09-open-source-watch/59_bg_workers.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Here we decouple the scrapers from the PG database by using background jobs to extract all record interaction into an asynchronous job that handles CRUD actions for the records. This way our scraper can be dedicated just to pulling data down as fast as possible. Altogether this should boost capacity to the maximum possible on each machine.&lt;/p&gt;
+
+&lt;p&gt;The other benefit is that the scrapers will use less memory because they wont’ need to know about the ORM. The extra memory that normally would have been loaded with each scraper can be used to for extra processes to ensure we are getting the most out of each server.&lt;/p&gt;
+
+&lt;h3 id=&quot;for-the-fun-of-it&quot;&gt;For the Fun of It&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Commit/comment message sentiment analysis&lt;/li&gt;
+  &lt;li&gt;Tracking trending repositories&lt;/li&gt;
+  &lt;li&gt;Tracking the top 1 million repositories&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;in-the-end&quot;&gt;In the End&lt;/h2&gt;
+
+&lt;p&gt;We learned quite a few things over the course of this project, but there are a few we especially wanted to highlight:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Questions drive acquisition and acquisition drives infrastructure. In other words: spend time on things that solve the problem at hand.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Identifying bottlenecks and solving them are more often than not the highest leverage areas and have the biggest ROI on time invested.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Teamwork is an amazing thing.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Keep a journal! Daily journals are incredibly useful for reviewing your workflows, identifying project bottlenecks (human deficiencies), and realizing where you made made bad assumptions&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Brain synchronization. One of the greatest challenges of working with another person is getting &lt;em&gt;and staying&lt;/em&gt; in sync. Once you have both established a common vision and are working on the same code base it is much easier to move forward. However, diverging ideas occur all the time where you talk about the same thing, but you both have very different mental images of what it looks like. Mockups, diagrams, and representational documentation of some kind are priceless when it comes to eliminating confusion over abstract concepts that are poorly represented verbally.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Psychological safety is paramount. It’s good for ideas to bump together; it gets rid of the chaff. Discussing decisions creates a kind of idea evolution where the idea grows, shrinks, and becomes something altogether you never would have guessed; it’s better. Being detached from ideas helps with this process and always making sure that the idea is critiqued-not the person! This is something I believe Michael and I handled superbly and I couldn’t be more thankful for it.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;If you followed along to the bottom, thank you!&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;And don’t forget to visit &lt;a href=&quot;http://opensourcewatch.io&quot;&gt;Open Source Watch&lt;/a&gt;&lt;/strong&gt;!&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;div&gt;
+  &lt;a href=&quot;http://www.numbluk.com/credentials&quot;&gt;&lt;img class=&quot;gravitar&quot; src=&quot;https://www.gravatar.com/avatar/fd080461b35c3dcb5911e38d5f58c5af&quot; /&gt;&lt;/a&gt;
+
+  &lt;a href=&quot;http://getmichaelonboard.com/&quot;&gt;&lt;img class=&quot;gravitar&quot; src=&quot;https://secure.gravatar.com/avatar/6ec313ee09eeb69eddd3789f98a3d2b2&quot; /&gt;&lt;/a&gt;
+&lt;/div&gt;
+
+&lt;p&gt;We are two full stack developers… Click our beautiful faces to check out our websites.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;&lt;strong&gt;Psst&lt;/strong&gt; By the way, if you are hiring (or know someone who is), &lt;a href=&quot;http://getmichaelonboard.com&quot;&gt;Michael&lt;/a&gt; is currently looking for a fullstack position.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;h4 id=&quot;footnotes&quot;&gt;Footnotes&lt;/h4&gt;
+&lt;div class=&quot;footnotes&quot;&gt;
+  &lt;ol&gt;
+    &lt;li id=&quot;fn:1&quot;&gt;
+      &lt;p&gt;Check &lt;a href=&quot;http://www.brianstorti.com/implementing-a-priority-queue-in-ruby/&quot;&gt;here&lt;/a&gt; for more on Binary Heaps. &lt;a href=&quot;#fnref:1&quot; class=&quot;reversefootnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+    &lt;/li&gt;
+  &lt;/ol&gt;
+&lt;/div&gt;
+</content>
+ </entry>
+ 
+ 
+</feed>

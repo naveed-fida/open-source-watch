@@ -1,0 +1,30 @@
+safe: false
+
+# build settings
+markdown: kramdown
+highlighter: rouge
+lsi: false
+permalink: /:title
+
+title: "Open Source Watch"
+description: "This is the story of how two developers set out to discover the top contributors to open-source. We do this by tracking the top 100,000 most starred repositories on Github."
+baseurl: ""
+url: "http://himsel.me" # replace by your site's url
+twitter_username: your-name
+github_username:  lukas-h # (your name)
+accent: "#f7f7e6" # accent color for blog column
+
+author: "Open Source Watch"
+address: "Your Street, <br>Your City, Country"
+email: "your@email.com"
+
+# google analytics tracking code, please change the value
+g_analytics: ""
+
+# language settings
+isolang: en
+
+# exclude files
+exclude:
+  - LICENSE
+  - README.md
