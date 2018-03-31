@@ -9,7 +9,7 @@ permalink: /:title
 title: "Open Source Watch"
 description: "This is the story of how two developers set out to discover the top contributors to open-source. We do this by tracking the top 100,000 most starred repositories on Github."
 baseurl: /open-source-watch
-url: "http://himsel.me" # replace by your site's url
+url: "https://naveed-fida.github.com/open-source-watch" # replace by your site's url
 twitter_username: your-name
 github_username:  lukas-h # (your name)
 accent: "#f7f7e6" # accent color for blog column
