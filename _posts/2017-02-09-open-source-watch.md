@@ -5,7 +5,7 @@ categories: opensourcewatch data-engineering backend-systems
 ---
 
 <a href="http://www.opensourcewatch.io">
-  <img style="max-width: 30%;" src="/assets/osw-logo.png" alt="opensourcewatch logo" id="osw_logo">
+  <img style="max-width: 30%;" src="{{site.url}}/assets/osw-logo.png" alt="opensourcewatch logo" id="osw_logo">
 </a>
 
 This is the story of how two developers set out to discover the top contributors to open-source. We do this by tracking the top 100,000 most starred repositories on Github. Some stats about the project:
@@ -91,12 +91,12 @@ The questions we asked were:
 Here is a look at Open Source Watch (OSW):
 <br>
 
-![](/assets/posts/2017-02-09-open-source-watch/02_osw_home_full.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/02_osw_home_full.png)
 
 
 The homepage consists of AJAXified sprinkles for the table displays and styles provided by the Materialize framework. Take a long look (or go to our [website](http://opensourcewatch.io)) because we won't be talking about this much.
 
-![](/assets/posts/2017-02-09-open-source-watch/03_overview_glacier.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/03_overview_glacier.png)
 
 The focus of OSW is answering questions and to answer questions, we need to focus on data. The rest of the conversation will center on acquiring data, setting up infrastructure, and tuning our system.
 
@@ -116,32 +116,32 @@ First, we need to get the repository URLs of the projects we are going to track.
 
 Luckily, scraping the top Repositories was a one-time job. We stored the data in a PostgreSQL database and charged ahead with a single process to begin scraping!
 
-![](/assets/posts/2017-02-09-open-source-watch/04_iteration_0.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/04_iteration_0.png)
 
 One process can achieve 8,500 requests on our Digital Ocean server. We did some extrapolation and estimated it would take 36 hours to scrape all 100,000 repositories one time through (with an average of 2.8 requests needed per repository)!
 
-![](/assets/posts/2017-02-09-open-source-watch/acq_status_01.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/acq_status_01.png)
 
 This is 4.5x slower than our target. So, what to do? Scale up! More scrapers means more capacity and with 6 processes we can get within the 8 hour window.
 
-![](/assets/posts/2017-02-09-open-source-watch/05_iteration_1.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/05_iteration_1.png)
 
 
 ### The Problem of Shared State
 
 Initially, our scraper kept the list of repos internally as a circular queue. We shift from the front and immediately push that repository to the back like so:
 
-![](/assets/posts/2017-02-09-open-source-watch/06_current_state_of_scraper.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/06_current_state_of_scraper.jpg)
 
 With this data structure we can always ensure that we are getting the oldest repository in O(1) time.
 
 However, that data is stored in-memory within the process itself. If we scaled as is, they would not be working off the same queue; each would work through its own list independently:
 
-![](/assets/posts/2017-02-09-open-source-watch/07_shared_state.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/07_shared_state.png)
 
 What we want is for our scrapers to be working off the same list. Therefore, we extracted and centralize this queue state like so:
 
-![](/assets/posts/2017-02-09-open-source-watch/08_non_shared_state.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/08_non_shared_state.png)
 
 ### Coordination Options
 
@@ -149,11 +149,11 @@ Okay, how do we implement this? Two options occurred to us...
 
 First, we could use the current database as a pseudo-queue by *timestamping* the repository every time we scrape it, and then making sure we retrieve the record with the oldest 'updated_at' column. However, this means that every time we want the next repository, we have to do a scan to find the oldest timestamp. This is awfully slow:
 
-![](/assets/posts/2017-02-09-open-source-watch/10_db_coord_opt_before_idx.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/10_db_coord_opt_before_idx.jpg)
 
 What if we indexed that column?
 
-![](/assets/posts/2017-02-09-open-source-watch/11_db_coord_opt_after_idx.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/11_db_coord_opt_after_idx.jpg)
 
 It's definitely faster. And if we scale it would do so in O(log(n)) time, which isn't too bad. But, if we ever scale the repositories we track it will still slow down somewhat.
 
@@ -161,7 +161,7 @@ We prefer the O(1) complexity of a circular queue data structure.
 
 Enter Redis; Redis is often used as a shared queue for workers. It allows us to implement the circular queue directly. Here is an example benchmark to get an idea of its throughput:
 
-![](/assets/posts/2017-02-09-open-source-watch/12_redis_benchmark.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/12_redis_benchmark.jpg)
 
 Since we use the queue data structure, the operation is always O(1). On top of that, our system is now more orthogonal as the concerns of storage and coordination are separate.
 
@@ -169,7 +169,7 @@ Since we use the queue data structure, the operation is always O(1). On top of t
 
 Here is the how collaboration is implemented with Redis:
 
-![](/assets/posts/2017-02-09-open-source-watch/13_obj_collab.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/13_obj_collab.png)
 
 There is a queue object that is a layer on top of Redis which manages the queue. The dispatcher, the interface between the scrapers and the queue, then requests the next repository from the queue object. The queue object shifts a repository from the front of the Redis queue, copies it, and immediately pushes it to the back of the queue. The dispatcher gets a clone and passes the data from the queue to its collaborating scraper agents.
 
@@ -183,19 +183,19 @@ Now that the scrapers can coordinate via the Redis queue, the next question is w
 Initially, we were being throttled hard (because we looked like a bot--which we were) but we soon realized this was only for *repeatedly hitting the same url hundreds of times* if instead we used a round-robin approach Github was none the wiser.
 - - -
 
-![](/assets/posts/2017-02-09-open-source-watch/14_concurrent_diminishing_returns.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/14_concurrent_diminishing_returns.png)
 
 Our processes are memory hogs, but it doesn't matter as more than two processes give diminishing returns. Dollar for dollar it would be better ROI to scale up, and maximize our low memory machines and then scale out from there.
 
 We spin up a second process on our server...
 
-![](/assets/posts/2017-02-09-open-source-watch/acq_status_02.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/acq_status_02.png)
 
 ### Scaling Out
 
 We are doing a decent job of maximizing our machines so we spun up two more servers with two processes each.
 
-![](/assets/posts/2017-02-09-open-source-watch/acq_status_03.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/acq_status_03.png)
 
 Now, four times a day (every 6 hours) we scrape the top 100,000 repositories on Github using 3 servers (represented by the dispatcher objects) which are coordinated by a Redis queue. This is well within our 8 hour window!
 
@@ -203,7 +203,7 @@ In total, roughly 1.2 million requests per day are made to Github (don't worry, 
 
 An updated system overview:
 
-![](/assets/posts/2017-02-09-open-source-watch/15_more_the_merrier.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/15_more_the_merrier.png)
 
 We now have many servers with multiple processes sharing a single queue on Redis. Everything is great!
 
@@ -224,7 +224,7 @@ A normal day might look like the following: wake up, check on the processes from
 
 *Gasp!* The scrapers all crashed in the middle of the night!
 
-![](/assets/posts/2017-02-09-open-source-watch/16_dilbert.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/16_dilbert.jpg)
 
 Losing this valuable time meant we lost hundreds of thousands of requests.  We would then debug and redeploy with no guarantee that we wouldn't run into some other edge-case.
 
@@ -276,7 +276,7 @@ We initiate this entire management process with a CLI application.
 
 Below, you can see the status call of the CLI app we've written to remotely manage our daemons:
 
-![](/assets/posts/2017-02-09-open-source-watch/17_the_power_of_daemons.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/17_the_power_of_daemons.jpg)
 
 From our one console, with a few keyboard strokes, we can check on all of our scrapers. Centralized control makes deployment simple, monitoring a joy (if that's a thing), and restarting painless. No longer do the processes have to be micromanaged.
 
@@ -292,15 +292,15 @@ We want to answer questions related to the past 30 and 90 days. We could wait 83
 
 We tweaked our scrapers to grab historical data related over the past 90 days. As we quickly found out, more data meant new problems:
 
-![](/assets/posts/2017-02-09-open-source-watch/18_more_data_more_problems.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/18_more_data_more_problems.jpg)
 
 Only scraping daily data brought in around 25,000 new records a day, but we were now getting hundreds of thousands to millions of records a day. Our request capacity quickly plummeted to 30% of what we expected.
 
-![](/assets/posts/2017-02-09-open-source-watch/downshift_01.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/downshift_01.png)
 
 We've been downshifted...
 
-![](/assets/posts/2017-02-09-open-source-watch/19_downshifted.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/19_downshifted.jpg)
 
 At 30% capacity (of 1.2 Million requests), it will take 10 days to retrieve all the data needed. That's far too long.
 
@@ -308,23 +308,23 @@ At 30% capacity (of 1.2 Million requests), it will take 10 days to retrieve all 
 
 Our scrapers are waiting on something in the system. What should be considered?
 
-![](/assets/posts/2017-02-09-open-source-watch/20_thinking_1.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/20_thinking_1.png)
 
 Well, our server activity hasn't increased, in fact it has decreased, so we can eliminate the scraper servers right off the bat.
 
-![](/assets/posts/2017-02-09-open-source-watch/20_thinking_2.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/20_thinking_2.png)
 
 Our request activity has decreased, so it can't be anything to do with Github.
 
-![](/assets/posts/2017-02-09-open-source-watch/21_thinking_2.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/21_thinking_2.png)
 
 The only difference is the number of records that are being retrieved. Now that our responses are often rich with new data that needs to be stored, is it possible the DB server is being overwhelmed? No, the CPU usage is high, but far from being overwhelmed.
 
-![](/assets/posts/2017-02-09-open-source-watch/22_thinking_3.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/22_thinking_3.png)
 
 All that remains is something to do with Postgres or the connections to Postgres.
 
-![](/assets/posts/2017-02-09-open-source-watch/23_thinking_4.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/23_thinking_4.png)
 
 ### Is Postgres Itself being Overwhelmed?
 
@@ -332,7 +332,7 @@ With 6 processes, we are writing to the database more often. Is it possible that
 
 Here is a benchmark of the insertion speed into Postgres:
 
-![](/assets/posts/2017-02-09-open-source-watch/24_pg_insertion_benchmark.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/24_pg_insertion_benchmark.jpg)
 
 PG Insertion Capacity
 = (60 / .000202) insertions / min  
@@ -375,20 +375,20 @@ We began to benchmark our queries and we noticed that when a search is made for 
 
 Here is before indexing:
 
-![](/assets/posts/2017-02-09-open-source-watch/25_indexing_benchmark_before.jpg)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/25_indexing_benchmark_before.jpg)
 
 and after indexing:
 
-![](/assets/posts/2017-02-09-open-source-watch/26_indexing_benchmarks_after.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/26_indexing_benchmarks_after.png)
 
 Before, it took a whopping 341 ms just to look up an issue in the table with a sequential scan.
 
 After, it does a heap scan which significantly impacted the lookup time; a 2700X difference. From then on we knew to keep a close eye on other similar situations.
 
 ### Gaining Speed...
-![](/assets/posts/2017-02-09-open-source-watch/downshift_02.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/downshift_02.png)
 
-![](/assets/posts/2017-02-09-open-source-watch/27_gaining_speed.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/27_gaining_speed.png)
 
 We picked up a great deal of speed with the index. At this moment in time, the system was running around 60% capacity.
 
@@ -449,19 +449,19 @@ Here is a visualization:
 
 **Many Queries**
 
-![](/assets/posts/2017-02-09-open-source-watch/28_many_pings.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/28_many_pings.png)
 
 **Single Query**
 
-![](/assets/posts/2017-02-09-open-source-watch/29_single_ping.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/29_single_ping.png)
 
 This is just a visualization. The latency between the scraper server and database server is extremely fast, less than a millisecond, but if latency exists for every single query, and a large number of them are made, then the latency starts to add up. In this case, it meant around 30 less round trips to for each bulk import.
 
 ### Vrrrr...
 
-![](/assets/posts/2017-02-09-open-source-watch/downshift_03.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/downshift_03.png)
 
-![](/assets/posts/2017-02-09-open-source-watch/30_vrrr.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/30_vrrr.png)
 
 At this point, we are somewhere near 80% capacity, but we didn't give up the pursuit of optimization quite yet...
 
@@ -478,7 +478,7 @@ end
 
 Behind the scenes, ActiveRecord sends another query over the wire **every time we attempt to create a record**:
 
-![](/assets/posts/2017-02-09-open-source-watch/31_orm_curtain_extra_query.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/31_orm_curtain_extra_query.png)
 
 Above, we spoke of reducing total queries from around 30 to 1, but in reality they were being reduced from around 60 to 31. All the validation queries were being fired separately, one-by-one behind the scenes for each insertion.
 
@@ -488,19 +488,19 @@ If the validation is pushed down to the database as a constraint, the no longer 
 
 Here is a snapshot of what the constraint now looks like:
 
-![](/assets/posts/2017-02-09-open-source-watch/32_orm_curtain_db_layer_validation.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/32_orm_curtain_db_layer_validation.png)
 
 And here is a creation attempt:
 
-![](/assets/posts/2017-02-09-open-source-watch/33_orm_curtain_no_ar_validation.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/33_orm_curtain_no_ar_validation.png)
 
 As you can see, no more extra queries! We have successfully reduced the number of queries from around 60 to 1!
 
 ### Vrr-OOM!
 
-![](/assets/posts/2017-02-09-open-source-watch/downshift_04.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/downshift_04.png)
 
-![](/assets/posts/2017-02-09-open-source-watch/34_vrroooom.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/34_vrroooom.png)
 
 At this point, we are now back to the capacity that we had originally anticipated. You'll notice that 5th gear was never reached! That is not a mistake. Our acquisition could still be further tuned, but we'll get to that later.
 
@@ -508,11 +508,11 @@ At this point, we are now back to the capacity that we had originally anticipate
 
 After all of that hard work, how about we take a look at some of the data we've collected? by going back back to the webpage:
 
-![](/assets/posts/2017-02-09-open-source-watch/35_explore_data.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/35_explore_data.png)
 
 Initially, it took about a minute to load.
 
-![](/assets/posts/2017-02-09-open-source-watch/render_status_01.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/render_status_01.png)
 
 No one wants to see OSW that bad!
 
@@ -531,7 +531,7 @@ GROUP BY users.id ORDER BY hit_count desc;
 ```
 Here is an analysis of the query above:
 
-![](/assets/posts/2017-02-09-open-source-watch/37_front_end_execution_time.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/37_front_end_execution_time.png)
 
 The query takes almost 13 seconds (remember, this is 1 out of 16 total queries that need to be made). It's slow. Very slow. And there is no way around that.
 
@@ -539,11 +539,11 @@ But why is it slow?
 
 Well, we have to join a couple tables that have millions of rows:
 
-![](/assets/posts/2017-02-09-open-source-watch/38_front_end_merge_join.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/38_front_end_merge_join.png)
 
 Then we do some aggregating:
 
-![](/assets/posts/2017-02-09-open-source-watch/39_front_end_aggregate.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/39_front_end_aggregate.png)
 
 Can we optimize our query? There is no obvious solution there.  
 
@@ -624,7 +624,7 @@ The impact of using materialized views is huge...
 
 That is almost as fast as the round trip to our server and back! Awesome!
 
-![](/assets/posts/2017-02-09-open-source-watch/render_status_02.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/render_status_02.png)
 
 ### Until We Added that N+1 Query...
 
@@ -640,7 +640,7 @@ One of the questions we try to answer involves displaying a repository for each 
 
 For each issue, there is an additional query made for the associated repository. Here is what it looks like at the database level:
 
-![](/assets/posts/2017-02-09-open-source-watch/40_n_plus_one_before.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/40_n_plus_one_before.png)
 
 To fix it, a join was added so that the repository information needed already lived on the cached query:
 
@@ -656,11 +656,11 @@ INNER JOIN repositories ON repositories.id = tmp.repository;
 
 Now when the server-side rendering looks like this at the database level:
 
-![](/assets/posts/2017-02-09-open-source-watch/41_n_plus_one_after.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/41_n_plus_one_after.png)
 
 No more N+1!
 
-![](/assets/posts/2017-02-09-open-source-watch/render_sts_03.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/render_sts_03.png)
 
 ### Impact of Database Level Caching
 
@@ -678,7 +678,7 @@ Huge improvement!
 
 If you remember, we were handling our repositories like this:
 
-![](/assets/posts/2017-02-09-open-source-watch/42_obj_collab.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/42_obj_collab.png)
 
 It's a "stupid" circular queue, meaning all repositories are scraped at the same rate.
 
@@ -686,7 +686,7 @@ It's a "stupid" circular queue, meaning all repositories are scraped at the same
 
 Treating all repositories the same in relation to scraping is rather unfortunate because the top 1% of repositories by commit activity are responsible for 42% of commits:
 
-![](/assets/posts/2017-02-09-open-source-watch/43_not_all_repos.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/43_not_all_repos.png)
 
 On top of that, the top 40% of repositories by activity account for 99% of the top 100,000!
 
@@ -698,17 +698,17 @@ Priority is key.
 
 Let's think about what is needed. Take a look at the following chart:
 
-![](/assets/posts/2017-02-09-open-source-watch/44_repos_list.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/44_repos_list.png)
 
 Say, for example, there is a list of repositories in Redis and the numbers above represent their activity rank where 10 is the most active.
 
 When the queue is first popped, the most active repository is popped and then maybe we put it somewhere in the middle:
 
-![](/assets/posts/2017-02-09-open-source-watch/45_repos_10_insert.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/45_repos_10_insert.png)
 
 The next time the queue is popped, the second-most active repository is removed from the queue and placed further down the from the middle as it is less active than the previous repository and therefore needs to be scraped less:
 
-![](/assets/posts/2017-02-09-open-source-watch/46_repos_other_insert.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/46_repos_other_insert.png)
 
 But how, exactly, will it be implemented?
 
@@ -718,7 +718,7 @@ The first idea was to create a binary heap and maintain it as a priority queue. 
 
 What is a binary heap[^1]? Put simply, it is a balanced and complete tree:
 
-![](/assets/posts/2017-02-09-open-source-watch/47_heap.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/47_heap.png)
 
 It has a "heap property", meaning all nodes are greater than or equal to their respective children. In other words, the highest scored element will always be the root of the tree.
 
@@ -731,7 +731,7 @@ The most promising feature is that a binary heap can easily be represented as an
 
 Wait... can we resort to this so simply? No. A value is pushed by adding it to the end of the array and then bubbling it, or heapifying it, through the tree. That entails multiple requests or pulling down the entire state of the Redis queue for resorting.  Also, what happens when multiple scrapers are involved:
 
-![](/assets/posts/2017-02-09-open-source-watch/48_redis_concurr_probs.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/48_redis_concurr_probs.png)
 
 If multiple scrapers are attempting to bubble values up through Redis, or dequeueing while other processes are enqueueing?
 
@@ -749,7 +749,7 @@ score = priority / (times_scraped + 1)
 
 If that is plotted for a few priority values it yields:
 
-![](/assets/posts/2017-02-09-open-source-watch/49_decay_chart.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/49_decay_chart.png)
 
 One problem is that as time goes on, all scores approach zero which means that periodically we will have to shut everything down and reset the score. This additional process must be maintained and if for some reason it doesn't refresh the scores then the whole priority queue breaks. Not only that, if capacity is increased without updating the process it breaks. There is a high maintenance cost involved with resorting to this method without even being sure Redis will be fast enough. Not to mention, how do we tune the frequency distribution? This sounds more painful than it should be.
 
@@ -759,21 +759,21 @@ What is really nice about a circular queue is that the oldest repository is alwa
 
 Let's go back to the ranked list of nodes:
 
-![](/assets/posts/2017-02-09-open-source-watch/50_example_list.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/50_example_list.png)
 
 and let us lump this list into three priority levels like so:
 
-![](/assets/posts/2017-02-09-open-source-watch/51_lumped_list.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/51_lumped_list.png)
 
 We are going to say say that the frequency ratio is 10:5:1. What we really need is to be able to control the frequency with which each priority level is scraped.
 
 For example, 3 would be scraped 10X by shifting the first node from the front and pushing it to the back of the subset of nodes with a priority of 3:
 
-![](/assets/posts/2017-02-09-open-source-watch/52_10x.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/52_10x.png)
 
 And do the same with priority level 2 and 1 with frequencies of 5x and 1x respectively:
 
-![](/assets/posts/2017-02-09-open-source-watch/53_5x_and_1x.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/53_5x_and_1x.png)
 
 All of this led to the following...
 
@@ -785,11 +785,11 @@ Or SRRPQQ for short.
 
 We began by ordering our list of repositories by activity and then range mapping that ordered list into X number of "buckets" where each bucket will get its own Redis queue:
 
-![](/assets/posts/2017-02-09-open-source-watch/54_range_mapping.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/54_range_mapping.png)
 
 Then when the dispatcher requests a repository, it will actually be interacting with a priority queue object which has a method to draw from each bucket at the frequency we need:
 
-![](/assets/posts/2017-02-09-open-source-watch/55_.dispatch_freq.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/55_.dispatch_freq.png)
 
 This may appear to be a lot to take in, but it really just is a smart priority queue that allows us to easily give more attention to more active repositories and thereby reducing latency between when something is pushed to Github and when that information shows up on our webpage.  
 
@@ -866,11 +866,11 @@ end
 
 The code you saw previously gives us a distribution like this:  
 
-![](/assets/posts/2017-02-09-open-source-watch/56_untuned_freq.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/56_untuned_freq.png)
 
 If we tune it further by modifying the population of queue references we achieve a distribution that more closely matches the activity of repositories.
 
-![](/assets/posts/2017-02-09-open-source-watch/57_tuned_freq.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/57_tuned_freq.png)
 
 The Staggered Round-Robin Queue-of-Queues is simple, as fast as possible (zero sorting), and gives precise control over the scraping distribution.
 
@@ -884,11 +884,11 @@ To start off, all top 100,000 repositories are scraped within a 5.5 hour time fr
 
 Right now, even though our queries are efficient enough, the scrapers still have to wait on them. Here is a diagram that represents the current state:
 
-![](/assets/posts/2017-02-09-open-source-watch/58_sleepy_scraper.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/58_sleepy_scraper.png)
 
 Instead of waiting on queries at all, we can maximize server resources if we git rid of the wait time altogether:
 
-![](/assets/posts/2017-02-09-open-source-watch/59_bg_workers.png)
+![]({{site.url}}/assets/posts/2017-02-09-open-source-watch/59_bg_workers.png)
 
 Here we decouple the scrapers from the PG database by using background jobs to extract all record interaction into an asynchronous job that handles CRUD actions for the records. This way our scraper can be dedicated just to pulling data down as fast as possible. Altogether this should boost capacity to the maximum possible on each machine.
 
