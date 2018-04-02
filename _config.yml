@@ -28,3 +28,7 @@ isolang: en
 exclude:
   - LICENSE
   - README.md
+  - config.ru
+  - Gemfile
+  - Gemfile.lock
+  - vendor
